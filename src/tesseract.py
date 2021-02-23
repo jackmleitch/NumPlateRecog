@@ -5,6 +5,7 @@ import argparse
 from segment_plate import preprocess_plate
 import pytesseract
 
+pytesseract.pytesseract.tesseract_cmd = r"<full_path_to_your_tesseract_executable>"
 
 # arg parser
 ap = argparse.ArgumentParser()
