@@ -1,8 +1,13 @@
 # required library
 import cv2
 import numpy as np
-import matplotlib.pyplot as plt
-import matplotlib.gridspec as gridspec
+import argparse
+
+# arg parser
+ap = argparse.ArgumentParser()
+ap.add_argument("-i", "--image", required=True, help="path to input image file")
+args = vars(ap.parse_args())
+image_path = args["image"]
 
 
 def preprocess_plate(image_path, blur=True, threshold=180, dilate=False):
@@ -32,6 +37,9 @@ def preprocess_plate(image_path, blur=True, threshold=180, dilate=False):
     # apply inverse binary thresholding (any pixel val. smaller than
     # thresh set to 255 and vice versa)
     img = cv2.threshold(img, 180, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)[1]
+    # img = cv2.adaptiveThreshold(
+    #     img, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 21, 2
+    # )
     # dilate white region of the image (characters)
     if dilate:
         kernel = np.ones((2, 2), np.uint8)
@@ -79,37 +87,34 @@ def segment_plate(image_path, blur=True, threshold=180, dilate=False):
         ratio = h / w
         # only select contour with defined ratio (filter irrelevent contours)
         # we know height must be greater than width of character
-        if 0.75 <= ratio <= 3.5:
+        if 0.75 <= ratio <= 8:
             # Select contour which has the height larger than 50% of the plate
             if h / plate_img.shape[0] >= 0.5:
                 # Draw bounding box arroung digit number
                 cv2.rectangle(test_roi, (x, y), (x + w, y + h), (0, 255, 0), 2)
-
                 # Sperate number and give prediction
                 curr_num = plate_img[y : y + h, x : x + w]
-                curr_num = cv2.resize(curr_num, dsize=(digit_w, digit_h))
-                _, curr_num = cv2.threshold(
-                    curr_num, 220, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU
+                # add black border to characters
+                color = [0, 0, 0]
+                # border widths
+                top, bottom, left, right = [5] * 4
+                curr_num = cv2.copyMakeBorder(
+                    curr_num, top, bottom, left, right, cv2.BORDER_CONSTANT, value=color
                 )
+                curr_num = cv2.resize(curr_num, dsize=(digit_w, digit_h))
                 crop_characters.append(curr_num)
 
     print(f"Detect {len(crop_characters)} letters...")
-    cv2.imshow("processed", test_roi)
+
+    # cv2.imshow("boxes", test_roi)
+    h = cv2.hconcat([crop_characters[i] for i in range(len(crop_characters))])
+    cv2.imshow("characters", h)
     cv2.waitKey(0)
-
-    fig = plt.figure(figsize=(14, 4))
-    grid = gridspec.GridSpec(ncols=len(crop_characters), nrows=1, figure=fig)
-
-    for i in range(len(crop_characters)):
-        fig.add_subplot(grid[i])
-        plt.axis(False)
-        plt.imshow(crop_characters[i], cmap="gray")
-    plt.show()
 
 
 if __name__ == "__main__":
-    test_image_path = "../input/num1.png"
-    cv2.imshow("plate", cv2.imread(test_image_path))
-    cv2.imshow("processed", preprocess_plate(test_image_path))
+    cv2.imshow("plate", cv2.imread(image_path))
+    # cv2.imshow("processed", preprocess_plate(image_path, blur=True))
+    segment_plate(image_path, blur=True)
     cv2.waitKey(0)
-    segment_plate(test_image_path, blur=False)
+
